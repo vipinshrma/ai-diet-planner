@@ -26,6 +26,19 @@ Your role is to:
 - Google Sign-In / Email OTP
 - Forgot password & logout
 - Session management (secure token storage)
+- **Implementation Notes**
+  - Supabase setup: enable Email (password + OTP) and Google providers; configure redirect URLs (`ai-diet-planner://auth`, `http://localhost:19006`), customize confirm/reset email templates.
+  - Environment: store `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` in Expo config/EAS secrets.
+  - Database: create `profiles` table keyed to `auth.users`, enable RLS with owner policies, add `handle_new_user` trigger to insert profile row post-signup.
+  - Frontend packages: `@supabase/supabase-js`, `@supabase/auth-helpers-react-native`, `expo-secure-store`, `@react-native-async-storage/async-storage`, `expo-auth-session`, `expo-linking`.
+  - Client: initialize Supabase with SecureStore-backed storage, enable auto token refresh on `AppState` change.
+  - State management: `AuthProvider` (context/Zustand) subscribes to `supabase.auth.onAuthStateChange`, exposes helpers for password, OAuth, OTP, reset, logout.
+  - Navigation: gate root layout with `AuthProvider` + `OnboardingProvider`; require `(intro)` flow to complete (stored in `AsyncStorage`) before presenting `(auth)` stack (`sign-in`, `sign-up`, `verify-otp`, `forgot-password`, `reset-password`) or `/(tabs)`.
+  - UI: build NativeWind-styled auth forms with validation, display error states, loading indicators, and links to auxiliary screens.
+  - Intro flow: horizontally paged onboarding carousel fetching random healthy-lifestyle illustrations from Unsplash; `Skip`/`Start` mark onboarding complete and route to sign-in.
+- **Testing Checklist**
+  - Email/password signup + login, email OTP flow, Google OAuth on native/web, password reset deep link, logout session clearing, token persistence across app restarts.
+  - Onboarding persistence across launches, skip/start buttons update storage and navigate correctly.
 ### Phase 2+
 - Personalized welcome on login (AI-driven greeting)
 - AI onboarding questionnaire (collects goals/preferences)
