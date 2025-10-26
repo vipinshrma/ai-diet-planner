@@ -1,10 +1,11 @@
-import { Feather } from '@expo/vector-icons';
+import { AntDesign, Feather, Fontisto } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useMemo, useRef, useState } from 'react';
-import { Dimensions, FlatList, Pressable, Text, View, ViewToken } from 'react-native';
+import { ReactNode, useMemo, useRef, useState } from 'react';
+import { Dimensions, FlatList, Modal, Pressable, Text, View, ViewToken } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
 
+import { useAuth } from '@/providers/AuthProvider';
 import { useOnboarding } from '@/providers/OnboardingProvider';
 
 type Slide = {
@@ -50,6 +51,7 @@ const BUTTON_SIZE = 84;
 const STROKE_WIDTH = 6;
 const RADIUS = (BUTTON_SIZE - STROKE_WIDTH) / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+const ACCENT = '#1CBF82';
 
 function ProgressButton({ progress, isLastStep, onPress }: ProgressButtonProps) {
   const clampedProgress = Math.min(Math.max(progress, 0), 1);
@@ -101,6 +103,10 @@ export default function OnboardingScreen() {
   const flatListRef = useRef<FlatList<Slide>>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const { completeOnboarding } = useOnboarding();
+  const { signInWithGoogle } = useAuth();
+  const [selectorVisible, setSelectorVisible] = useState(false);
+  const [sheetError, setSheetError] = useState<string | null>(null);
+  const [sheetLoading, setSheetLoading] = useState(false);
 
   const illustrationUrls = useMemo(
     () => generateIllustrationUrls(SLIDES.map((slide) => slide.topic)),
@@ -121,9 +127,43 @@ export default function OnboardingScreen() {
     }
   };
 
-  const handleFinish = completeOnboarding;
+  const openSelector = () => {
+    setSheetError(null);
+    setSelectorVisible(true);
+  };
 
-  const handleSkip = completeOnboarding;
+  const closeAndGoToLogin = async () => {
+    setSheetLoading(false);
+    setSheetError(null);
+    setSelectorVisible(false);
+    await completeOnboarding();
+  };
+
+  const handleContinueWithEmail = async () => {
+    if (sheetLoading) return;
+    await closeAndGoToLogin();
+  };
+
+  const handleContinueWithGoogle = async () => {
+    if (sheetLoading) return;
+    setSheetLoading(true);
+    setSheetError(null);
+    const message = await signInWithGoogle();
+    if (message) {
+      setSheetError(message);
+      setSheetLoading(false);
+      return;
+    }
+    await completeOnboarding();
+    setSheetLoading(false);
+    setSelectorVisible(false);
+  };
+
+  const handleContinueWithApple = () => {
+    setSheetError('Apple sign-in is coming soon.');
+  };
+
+  const handleSkip = closeAndGoToLogin;
 
   const isLastSlide = currentIndex === SLIDES.length - 1;
   const progress = (currentIndex + 1) / SLIDES.length;
@@ -134,7 +174,7 @@ export default function OnboardingScreen() {
         <View className="flex-row items-center justify-between px-6 pt-4">
           <Text className="text-2xl font-semibold text-emerald-600 dark:text-emerald-400">LifeFit</Text>
           <Pressable
-            onPress={isLastSlide ? handleFinish : handleSkip}
+            onPress={isLastSlide ? openSelector : handleSkip}
             className="px-4 py-2 rounded-full bg-white/80 dark:bg-neutral-900/80 border border-emerald-200 dark:border-neutral-800"
           >
             <Text className="text-sm font-medium text-emerald-600 dark:text-emerald-300">
@@ -177,7 +217,7 @@ export default function OnboardingScreen() {
                     <ProgressButton
                       progress={progress}
                       isLastStep={isLastSlide}
-                      onPress={isLastSlide ? handleFinish : handleNext}
+                      onPress={isLastSlide ? openSelector : handleNext}
                     />
                   </View>
                 </View>
@@ -188,6 +228,70 @@ export default function OnboardingScreen() {
 
         <View className="pb-10" />
       </View>
+
+      <Modal
+        animationType="fade"
+        transparent
+        visible={selectorVisible}
+        onRequestClose={handleContinueWithEmail}
+      >
+        <View className="flex-1 bg-black/40 justify-end">
+          <Pressable className="flex-1" onPress={handleContinueWithEmail} />
+          <View className="px-4 pb-8">
+            <View className="rounded-[32px] bg-white dark:bg-neutral-900 overflow-hidden">
+              <SheetOption
+                disabled={sheetLoading}
+                label="Continue with Email"
+                icon={<Feather name="mail" size={20} color={ACCENT} />}
+                onPress={handleContinueWithEmail}
+              />
+              <View className="h-px bg-[#E3ECE8] dark:bg-neutral-800" />
+              <SheetOption
+                disabled={sheetLoading}
+                label="Continue with Apple"
+                icon={<Fontisto name="apple" size={22} color="#000000" />}
+                onPress={handleContinueWithApple}
+              />
+              <View className="h-px bg-[#E3ECE8] dark:bg-neutral-800" />
+              <SheetOption
+                disabled={sheetLoading}
+                label={sheetLoading ? 'Connecting…' : 'Continue with Google'}
+                icon={<AntDesign name="google" size={20} color="#000000" />}
+                onPress={handleContinueWithGoogle}
+              />
+            </View>
+            <Pressable
+              className="mt-4 h-14 rounded-[32px] bg-white dark:bg-neutral-900 items-center justify-center active:opacity-90"
+              onPress={handleContinueWithEmail}
+            >
+              <Text className="text-base font-semibold text-red-500">Cancel</Text>
+            </Pressable>
+            {sheetError ? (
+              <Text className="text-center text-sm text-red-500 mt-4">{sheetError}</Text>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
+  );
+}
+
+type SheetOptionProps = {
+  label: string;
+  icon: ReactNode;
+  onPress: () => void;
+  disabled?: boolean;
+};
+
+function SheetOption({ label, icon, onPress, disabled }: SheetOptionProps) {
+  return (
+    <Pressable
+      className="flex-row items-center justify-between px-6 py-4 active:opacity-80"
+      onPress={onPress}
+      disabled={disabled}
+    >
+      <Text className="text-base font-medium text-[#103B33] dark:text-white">{label}</Text>
+      <View>{icon}</View>
+    </Pressable>
   );
 }
