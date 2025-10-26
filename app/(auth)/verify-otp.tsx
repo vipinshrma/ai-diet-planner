@@ -1,45 +1,55 @@
-import { useState } from 'react';
-import { View, Text, TextInput, Pressable } from 'react-native';
-import { Link, useLocalSearchParams } from 'expo-router';
+import { useRef, useState } from 'react';
+import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Link, useLocalSearchParams, useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Feather } from '@expo/vector-icons';
 
 import { useAuth } from '@/providers/AuthProvider';
 
+const PRIMARY = '#0F3E36';
+
 export default function VerifyOtpScreen() {
+  const router = useRouter();
   const params = useLocalSearchParams<{ email?: string }>();
   const email = typeof params.email === 'string' ? params.email : '';
 
   const { verifyOtp, sendOtp } = useAuth();
 
-  const [token, setToken] = useState('');
+  const [digits, setDigits] = useState<string[]>(Array(6).fill(''));
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
 
+  const inputRefs = useRef<(TextInput | null)[]>([]);
+
   if (!email) {
     return (
-      <View className="flex-1 items-center justify-center bg-white dark:bg-neutral-950 px-6">
-        <Text className="text-lg font-semibold text-neutral-900 dark:text-white mb-2">We need your email</Text>
-        <Text className="text-center text-neutral-600 dark:text-neutral-400 mb-6">
+      <SafeAreaView className="flex-1 bg-white dark:bg-neutral-950 px-6 items-center justify-center">
+        <Text className="text-lg font-semibold text-[#0F3E36] dark:text-white mb-2">
+          We need your email
+        </Text>
+        <Text className="text-center text-[#6B7B76] dark:text-neutral-400 mb-6">
           Go back and request a sign-in code so we know where to send it.
         </Text>
-        <Link href="/(auth)/sign-in" className="text-emerald-600 font-medium">
+        <Link href="/(auth)/sign-in" className="text-[#1CBF82] font-medium">
           Back to sign in
         </Link>
-      </View>
+      </SafeAreaView>
     );
   }
 
   const handleVerify = async () => {
-    if (!token.trim()) {
-      setError('Enter the code sent to your email.');
+    const token = digits.join('').trim();
+    if (token.length !== 6) {
+      setError('Enter the 6-digit code sent to your email.');
       return;
     }
 
     setLoading(true);
     setError(null);
 
-    const message = await verifyOtp(email, token.trim());
+    const message = await verifyOtp(email, token);
     if (message) {
       setError(message);
     }
@@ -62,50 +72,95 @@ export default function VerifyOtpScreen() {
     setResending(false);
   };
 
+  const handleDigitChange = (value: string, index: number) => {
+    const sanitized = value.replace(/\D/g, '').slice(-1);
+    setDigits((prev) => {
+      const next = [...prev];
+      next[index] = sanitized;
+      return next;
+    });
+
+    if (sanitized && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
+    if (!sanitized && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
+
   return (
-    <View className="flex-1 bg-white dark:bg-neutral-950 px-6 justify-center">
-      <Text className="text-3xl font-semibold text-neutral-900 dark:text-white mb-2">Enter your code</Text>
-      <Text className="text-neutral-500 dark:text-neutral-400 mb-8">
-        We sent a 6-digit code to {email}. Enter it below to finish signing in.
-      </Text>
+    <SafeAreaView className="flex-1 bg-white dark:bg-neutral-950">
+      <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
+        <View className="flex-1 justify-between px-6 py-10">
+          <View>
+            <Pressable
+              onPress={() => router.back()}
+              className="w-12 h-12 rounded-full bg-[#F4F6F5] items-center justify-center mb-8 active:opacity-80"
+            >
+              <Feather name="chevron-left" size={22} color={PRIMARY} />
+            </Pressable>
 
-      <TextInput
-        className="h-12 rounded-xl border border-neutral-300 dark:border-neutral-800 px-4 text-base text-neutral-900 dark:text-white bg-white dark:bg-neutral-900 tracking-[8px] text-center"
-        placeholder="000000"
-        placeholderTextColor="#9CA3AF"
-        keyboardType="number-pad"
-        maxLength={6}
-        value={token}
-        onChangeText={setToken}
-      />
+            <Text className="text-4xl font-semibold text-[#0F3E36] dark:text-white mb-2">
+              Enter your code
+            </Text>
+            <Text className="text-base text-[#6B7B76] dark:text-neutral-400">
+              We sent a 6-digit code to {email}. Enter it below to finish signing in.
+            </Text>
 
-      {error ? <Text className="text-sm text-red-500 mt-4">{error}</Text> : null}
-      {info ? <Text className="text-sm text-emerald-600 mt-4">{info}</Text> : null}
+            <View className="mt-12">
+              <View className="flex-row justify-between">
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <TextInput
+                    key={index}
+                    ref={(ref) => (inputRefs.current[index] = ref)}
+                    keyboardType="number-pad"
+                    maxLength={1}
+                    value={digits[index] ?? ''}
+                    onChangeText={(text) => handleDigitChange(text, index)}
+                    placeholder="•"
+                    placeholderTextColor="#9CB4AD"
+                    className="w-12 h-16 rounded-[24px] bg-[#F4F6F5] dark:bg-neutral-900/80 text-xl text-center text-[#103B33] dark:text-white"
+                  />
+                ))}
+              </View>
 
-      <View className="mt-8 space-y-5">
-        <Pressable
-          className="h-12 rounded-xl bg-emerald-500 items-center justify-center"
-          onPress={handleVerify}
-          disabled={loading}
-        >
-          <Text className="text-white font-medium">
-            {loading ? 'Verifying…' : 'Verify code'}
-          </Text>
-        </Pressable>
+              {error ? <Text className="mt-4 text-sm text-red-500">{error}</Text> : null}
+              {info ? <Text className="mt-4 text-sm text-emerald-600">{info}</Text> : null}
+            </View>
+          </View>
 
-        <Pressable className="items-center py-2" onPress={handleResend} disabled={resending}>
-          <Text className="text-sm text-emerald-600">
-            {resending ? 'Resending…' : 'Resend code'}
-          </Text>
-        </Pressable>
-      </View>
+          <View className="mt-12">
+            <Pressable
+              className="h-16 rounded-[32px] bg-[#0F3E36] flex-row items-center justify-between px-6 active:opacity-90"
+              onPress={handleVerify}
+              disabled={loading}
+            >
+              <Text className="text-white text-lg font-semibold">
+                {loading ? 'Verifying…' : 'Verify code'}
+              </Text>
+              <Feather name="arrow-right" size={24} color="#2CD4A0" />
+            </Pressable>
 
-      <Text className="mt-10 text-center text-sm text-neutral-500 dark:text-neutral-400">
-        Entered the wrong email?{' '}
-        <Link href="/(auth)/sign-in" className="text-emerald-600">
-          Try again
-        </Link>
-      </Text>
-    </View>
+            <Pressable
+              className="mt-6 h-14 rounded-[32px] border border-[#D8E4E0] flex-row items-center justify-center bg-white active:opacity-90 px-6"
+              onPress={handleResend}
+              disabled={resending}
+            >
+              <Feather name="refresh-ccw" size={18} color={PRIMARY} />
+              <Text className="ml-2 text-[#103B33] font-medium">
+                {resending ? 'Resending…' : 'Resend code'}
+              </Text>
+            </Pressable>
+
+            <Text className="mt-6 text-center text-sm text-neutral-500 dark:text-neutral-400">
+              Entered the wrong email?{' '}
+              <Link href="/(auth)/sign-in" className="text-[#1CBF82] font-medium">
+                Try again
+              </Link>
+            </Text>
+          </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }

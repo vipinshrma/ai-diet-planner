@@ -1,11 +1,17 @@
-import * as Linking from 'expo-linking';
-import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as Linking from 'expo-linking';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Feather } from '@expo/vector-icons';
 
 import { LoadingScreen } from '@/components/ui/loading';
+import { AuthField } from '@/components/auth/auth-field';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/AuthProvider';
+
+const PRIMARY = '#0F3E36';
+const ACCENT = '#1CBF82';
 
 export default function ResetPasswordScreen() {
   const router = useRouter();
@@ -27,29 +33,24 @@ export default function ResetPasswordScreen() {
             access_token: params.access_token,
             refresh_token: params.refresh_token,
           });
-          if (setSessionError) {
-            throw new Error(setSessionError.message);
-          }
+          if (setSessionError) throw new Error(setSessionError.message);
           return;
         }
 
         if (typeof params.code === 'string') {
           const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(params.code);
-          if (exchangeError) {
-            throw new Error(exchangeError.message);
-          }
+          if (exchangeError) throw new Error(exchangeError.message);
           return;
         }
 
         const initialUrl = await Linking.getInitialURL();
         if (initialUrl) {
           const { error: deepLinkError } = await supabase.auth.exchangeCodeForSession(initialUrl);
-          if (deepLinkError) {
-            throw new Error(deepLinkError.message);
-          }
+          if (deepLinkError) throw new Error(deepLinkError.message);
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Unable to use reset link. Request a new one.';
+        const message =
+          err instanceof Error ? err.message : 'Unable to use reset link. Request a new one.';
         setError(message);
       } finally {
         setInitializing(false);
@@ -99,44 +100,58 @@ export default function ResetPasswordScreen() {
   }
 
   return (
-    <View className="flex-1 bg-white dark:bg-neutral-950 px-6 justify-center">
-      <Text className="text-3xl font-semibold text-neutral-900 dark:text-white mb-2">Create a new password</Text>
-      <Text className="text-neutral-500 dark:text-neutral-400 mb-8">
-        Choose a strong password to secure your AI Diet Planner account.
-      </Text>
+    <SafeAreaView className="flex-1 bg-white dark:bg-neutral-950">
+      <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
+        <View className="flex-1 justify-between px-6 py-10">
+          <View>
+            <Pressable
+              onPress={() => router.back()}
+              className="w-12 h-12 rounded-full bg-[#F4F6F5] items-center justify-center mb-8 active:opacity-80"
+            >
+              <Feather name="chevron-left" size={22} color={PRIMARY} />
+            </Pressable>
 
-      <TextInput
-        className="h-12 rounded-xl border border-neutral-300 dark:border-neutral-800 px-4 text-base text-neutral-900 dark:text-white bg-white dark:bg-neutral-900 mb-4"
-        placeholder="New password"
-        placeholderTextColor="#9CA3AF"
-        secureTextEntry
-        value={newPassword}
-        onChangeText={setNewPassword}
-      />
+            <Text className="text-4xl font-semibold text-[#0F3E36] dark:text-white mb-2">
+              Create a new password
+            </Text>
+            <Text className="text-base text-[#6B7B76] dark:text-neutral-400">
+              Choose something secure to keep your account safe.
+            </Text>
 
-      <TextInput
-        className="h-12 rounded-xl border border-neutral-300 dark:border-neutral-800 px-4 text-base text-neutral-900 dark:text-white bg-white dark:bg-neutral-900 mb-2"
-        placeholder="Confirm new password"
-        placeholderTextColor="#9CA3AF"
-        secureTextEntry
-        value={confirmPassword}
-        onChangeText={setConfirmPassword}
-      />
+            <View className="mt-12">
+              <AuthField
+                placeholder="New password"
+                secureTextEntry
+                value={newPassword}
+                onChangeText={setNewPassword}
+                icon={<Feather name="lock" size={20} color={ACCENT} />}
+              />
+              <AuthField
+                placeholder="Confirm new password"
+                secureTextEntry
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                icon={<Feather name="check" size={20} color={ACCENT} />}
+                containerClassName="mt-5"
+              />
 
-      {error ? <Text className="text-sm text-red-500 mb-4">{error}</Text> : null}
-      {info ? <Text className="text-sm text-emerald-600 mb-4">{info}</Text> : null}
+              {error ? <Text className="mt-4 text-sm text-red-500">{error}</Text> : null}
+              {info ? <Text className="mt-2 text-sm text-emerald-600">{info}</Text> : null}
+            </View>
+          </View>
 
-      <View className="mt-2 space-y-5">
-        <Pressable
-          className="h-12 rounded-xl bg-emerald-500 items-center justify-center"
-          onPress={handleUpdatePassword}
-          disabled={submitting}
-        >
-          <Text className="text-white font-medium">
-            {submitting ? 'Updating…' : 'Update password'}
-          </Text>
-        </Pressable>
-      </View>
-    </View>
+          <Pressable
+            className="mt-12 h-16 rounded-[32px] bg-[#0F3E36] flex-row items-center justify-between px-6 active:opacity-90"
+            onPress={handleUpdatePassword}
+            disabled={submitting}
+          >
+            <Text className="text-white text-lg font-semibold">
+              {submitting ? 'Updating…' : 'Update password'}
+            </Text>
+            <Feather name="arrow-right" size={24} color="#2CD4A0" />
+          </Pressable>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
